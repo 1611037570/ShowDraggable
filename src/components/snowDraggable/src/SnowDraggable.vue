@@ -14,11 +14,7 @@
       }"
     >
       <slot>
-        <!-- <div class="draggable">
-          <div>长按开始</div>
-          <div>拖拽!👋</div>
-        </div> -->
-        <img src="./snow.svg" alt="" style="display: block" />
+        <img src="./assets/snow.svg" alt="" style="display: block" />
       </slot>
     </div>
   </div>
@@ -87,8 +83,6 @@ export interface DragProps {
   data?: any
   // 首次定位
   firstPosition?: string[] | number[] | null
-  // position
-  position?: any
 }
 
 const props = withDefaults(defineProps<DragProps>(), {
@@ -166,7 +160,6 @@ const emits = defineEmits([
 ])
 const draggable: any = ref({}) // 可拖拽元素
 const elementSize: any = ref({})
-// const parentNode: any = ref(null)
 const parentSize: any = ref({}) // 边缘大小
 const draggableSize: any = ref({}) // 可拖拽元素大小
 const isDragging = ref<boolean>(false)
@@ -361,7 +354,6 @@ function getClientCoordinates(event: MouseEvent | TouchEvent): {
 }
 // 拖拽开始
 function yDragStartFn(event: MouseEvent) {
-  console.log('111 :>> ', 111)
   if (disabled.value) return
   if (event instanceof MouseEvent && event.button !== 0) {
     return
@@ -672,5 +664,5 @@ function magnetDetection(x: number, y: number) {
 }
 </script>
 <style scoped>
-@import './style.css';
+@import './assets/style.css';
 </style>

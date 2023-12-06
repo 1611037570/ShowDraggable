@@ -31,15 +31,17 @@ export function snapGrid(
 
 // 检查是否是有效的手柄实现
 export function isValidHandle(event: any, handle: string | string[]) {
-  if (typeof handle === "string") {
-    return event.target?.closest(handle) !== null
-  } else if (Array.isArray(handle) && handle.length > 0) {
-    return handle.some((selector) => event.target?.closest(selector) !== null)
+  try {
+    if (typeof handle === 'string') {
+      return event.target?.closest(handle) !== null
+    } else if (Array.isArray(handle) && handle.length > 0) {
+      return handle.some((selector) => event.target?.closest(selector) !== null)
+    }
+  } catch (error) {
+    return false
   }
-
   return false
 }
-
 // 旋转后大小实现
 export function rotatedDimensions(width: number, height: number, angle: number) {
   // 将角度转换为弧度
