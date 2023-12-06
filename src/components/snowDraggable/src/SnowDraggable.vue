@@ -1,9 +1,10 @@
 <template>
   <div
     ref="draggable"
-    style="border: 1px solid red"
+    style="border: 0px solid red"
     :style="[draggableMode, draggablePos]"
     @mousedown.stop="yDragStartFn"
+    @touchstart.stop="yDragStartFn"
   >
     <div
       v-element-size="getElementSize"
@@ -13,6 +14,10 @@
       }"
     >
       <slot>
+        <!-- <div class="draggable">
+          <div>长按开始</div>
+          <div>拖拽!👋</div>
+        </div> -->
         <img src="./snow.svg" alt="" style="display: block" />
       </slot>
     </div>
@@ -21,21 +26,81 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, toRefs, computed, watch } from "vue"
-import { useWindowSize } from "./hooks/useWindowSize"
-import { useElementSize, vElementSize } from "./hooks/useElementSize"
-import { snapGrid, isValidHandle, rotatedDimensions } from "./utils"
-import { DragProps } from "./types"
+import { ref, onMounted, toRefs, computed, watch, onBeforeUnmount, nextTick } from 'vue'
+import { useWindowSize } from './hooks/useWindowSize'
+import { useElementSize, vElementSize } from './hooks/useElementSize'
+import { snapGrid, isValidHandle, rotatedDimensions } from './utils'
+export interface DragProps {
+  // 禁用组件拖拽
+  disabled?: boolean
+  // 基于父级视图
+  parent?: boolean
+  // 边缘检测
+  boundary?: boolean
+  // 碰撞检测
+  collision?: boolean
+  collisionName?: string | number
+  // 碰撞还原
+  collisionRestore?: string
+  // 磁吸检测
+  magnet?: boolean
+  // 磁吸名称
+  magnetName?: string | number
+  // 磁吸范围
+  magnetRange?: number
+  // 磁吸边距
+  magnetMargin?: number
+  // 双向绑定xyzr
+  x?: number
+  y?: number
+  index?: number
+  rotate?: number
+  // 独立缩放
+  scale?: number
+  // 父级缩放
+  parentScale?: number
+  // 网格大小
+  grid?: any
+  // 拖拽后吸附网格
+  afterDraggingAdsorbGrid?: boolean
+  // 拖动时吸附网格
+  whileDraggingAdsorbGrid?: boolean
+  // 拖动网格位置
+  gridLocation?: boolean
+  // 网格边距
+  gridMargin?: number
+  // 拖拽元素的选择器
+  handle?: string | string[] | null
+  // 禁用拖拽元素的选择器
+  disabledHandle?: string | string[] | null
+  // 禁用默认事件
+  disabledDefaultEvent?: boolean
+  // 拖拽样式
+  draggableClass?: string
+  draggableStyle?: object | null
+  // 网格样式
+  gridClass?: string
+  gridStyle?: object | null
+  // 重置位置
+  resetPosition?: boolean
+  // 用户数据
+  data?: any
+  // 首次定位
+  firstPosition?: string[] | number[] | null
+  // position
+  position?: any
+}
+
 const props = withDefaults(defineProps<DragProps>(), {
   disabled: false,
   parent: false,
   boundary: true,
   collision: true,
-  collisionName: "xiaoyang",
-  collisionRestore: "before", // 'init'
-  magnet: true,
+  collisionName: 'snow',
+  collisionRestore: 'before', // 'init'
+  magnet: false,
   magnetRange: 10,
-  magnetName: "xiaoyang",
+  magnetName: 'snow',
   magnetMargin: 6,
   x: 0,
   y: 0,
@@ -43,19 +108,21 @@ const props = withDefaults(defineProps<DragProps>(), {
   rotate: 0,
   scale: 1,
   parentScale: 1,
-  afterDraggingAdsorbGrid: true,
+  afterDraggingAdsorbGrid: false,
   whileDraggingAdsorbGrid: false,
-  gridLocation: true,
+  gridLocation: false,
   grid: [134, 96],
   gridMargin: 6,
   handle: null,
   disabledHandle: null,
   disabledDefaultEvent: true,
-  draggableClass: "",
+  draggableClass: '',
   draggableStyle: null,
-  gridClass: "grid",
+  gridClass: 'grid',
   gridStyle: null,
-  resetPosition: true
+  resetPosition: true,
+  data: {},
+  firstPosition: ['center', 'center']
 })
 const {
   disabled,
@@ -82,17 +149,20 @@ const {
   handle,
   disabledHandle,
   disabledDefaultEvent,
-  resetPosition
+  resetPosition,
+  data,
+  firstPosition
 } = toRefs(props)
 
+onBeforeUnmount(() => {})
 const emits = defineEmits([
-  "update:x",
-  "update:y",
-  "click",
-  "onDragStart",
-  "onDrag",
-  "onDragStop",
-  "auxLine"
+  'update:x',
+  'update:y',
+  'click',
+  'onDragStart',
+  'onDrag',
+  'onDragStop',
+  'auxLine'
 ])
 const draggable: any = ref({}) // 可拖拽元素
 const elementSize: any = ref({})
@@ -105,8 +175,10 @@ const initialMouseX = ref<number>(0)
 const initialMouseY = ref<number>(0)
 const initialTop = ref<number>(0)
 const initialLeft = ref<number>(0)
-const top = ref<number>(y.value)
-const left = ref<number>(x.value)
+
+const top = ref<number>(null)
+const left = ref<number>(null)
+
 const zIndex = ref(index.value)
 
 const prevX = ref<number>(0)
@@ -119,9 +191,9 @@ const gridPosTop = ref<number>(0)
 // 拖拽基础样式
 const draggableMode: any = computed(() => {
   return {
-    position: parent.value ? "absolute" : "fixed",
-    width: draggableSize.value.width + "px",
-    height: draggableSize.value.height + "px",
+    position: parent.value ? 'absolute' : 'fixed',
+    width: draggableSize.value.width + 'px',
+    height: draggableSize.value.height + 'px',
     zoom: scale.value
   }
 })
@@ -129,8 +201,8 @@ const draggableMode: any = computed(() => {
 // 拖拽样式
 const draggablePos: any = computed(() => {
   return {
-    left: left.value + "px",
-    top: top.value + "px",
+    left: left.value + 'px',
+    top: top.value + 'px',
     zIndex: zIndex.value
   }
 })
@@ -138,8 +210,8 @@ const draggablePos: any = computed(() => {
 // 网格样式
 const gridPos: any = computed(() => {
   return {
-    left: gridPosLeft.value + "px",
-    top: gridPosTop.value + "px",
+    left: gridPosLeft.value + 'px',
+    top: gridPosTop.value + 'px',
     zIndex: zIndex.value - 1
   }
 })
@@ -152,7 +224,8 @@ const dragData = computed(() => {
     width: draggableSize.value?.width || 0,
     height: draggableSize.value?.height || 0,
     scale: scale.value,
-    index: index.value
+    index: index.value,
+    data: data.value
   }
 })
 // 同步最新的xy坐标
@@ -167,8 +240,8 @@ watch(
 )
 // 返回最新的xy坐标
 watch([() => top.value, () => left.value], ([newTop, newLeft], [oldTop, oldLeft]) => {
-  emits("update:x", newLeft)
-  emits("update:y", newTop)
+  emits('update:x', newLeft)
+  emits('update:y', newTop)
 })
 
 watch(rotate, () => {
@@ -182,6 +255,46 @@ function getElementSize(size: any) {
     height: newHeight
   }
 }
+
+watch(parentSize, (val: any) => {
+  setPosition()
+})
+const isFirstPosition = ref(true)
+function setPosition() {
+  if (!firstPosition.value || !firstPosition.value.length || !isFirstPosition.value) {
+    top.value = y.value
+    left.value = x.value
+    return
+  }
+
+  if (typeof firstPosition.value[0] == 'string' && typeof firstPosition.value[1] == 'string') {
+    switch (firstPosition.value[0]) {
+      case 'left':
+        left.value = 0
+        break
+      case 'right':
+        left.value = parentSize.value.width - draggableSize.value.width
+        break
+      case 'center':
+        left.value = parentSize.value.width / 2 - draggableSize.value.width / 2
+        break
+    }
+
+    switch (firstPosition.value[1]) {
+      case 'top':
+        top.value = 0
+        break
+      case 'bottom':
+        top.value = parentSize.value.height - draggableSize.value.height
+        break
+      case 'center':
+        top.value = parentSize.value.height / 2 - draggableSize.value.height / 2
+        break
+    }
+    isFirstPosition.value = false
+  }
+}
+
 onMounted(() => {
   // 父级窗口变化
   watch(
@@ -223,16 +336,32 @@ onMounted(() => {
   watch(
     scale,
     () => {
-      draggable.value.setAttribute("data-scale", scale.value)
+      draggable.value.setAttribute('data-scale', scale.value)
     },
     {
       immediate: true
     }
   )
 })
-
+function getClientCoordinates(event: MouseEvent | TouchEvent): {
+  clientX: number
+  clientY: number
+} {
+  if (event instanceof TouchEvent) {
+    return {
+      clientX: event.touches[0].clientX,
+      clientY: event.touches[0].clientY
+    }
+  } else {
+    return {
+      clientX: event.clientX,
+      clientY: event.clientY
+    }
+  }
+}
 // 拖拽开始
 function yDragStartFn(event: MouseEvent) {
+  console.log('111 :>> ', 111)
   if (disabled.value) return
   if (event instanceof MouseEvent && event.button !== 0) {
     return
@@ -247,20 +376,25 @@ function yDragStartFn(event: MouseEvent) {
   }
 
   isDragging.value = true
-  initialMouseX.value = event.clientX
-  initialMouseY.value = event.clientY
+  const { clientX, clientY } = getClientCoordinates(event)
+
+  initialMouseX.value = clientX
+  initialMouseY.value = clientY
   initialTop.value = top.value
   initialLeft.value = left.value
 
   // 显示网格位置
   prevY.value = top.value
   prevX.value = left.value
-  emits("onDragStart", dragData.value)
-  window.addEventListener("mousemove", yDragFn, { capture: true })
-  window.addEventListener("mouseup", yDragStopFn, { capture: true })
+  emits('onDragStart', dragData.value)
+  window.addEventListener('mousemove', yDragFn, { capture: true })
+  window.addEventListener('mouseup', yDragStopFn, { capture: true })
+
+  window.addEventListener('touchmove', yDragFn, { capture: true, passive: false })
+  window.addEventListener('touchend', yDragStopFn, { capture: true, passive: false })
 }
 // 拖拽过程
-function yDragFn(event: MouseEvent) {
+function yDragFn(event: MouseEvent | TouchEvent) {
   if (isDragging.value) {
     // 阻止默认事件
     if (disabledDefaultEvent.value) {
@@ -269,14 +403,12 @@ function yDragFn(event: MouseEvent) {
     if (gridLocation.value) {
       showGridPos.value = true
     }
-
-    const { clientX, clientY } = event
+    const { clientX, clientY } = getClientCoordinates(event)
 
     // 计算鼠标在x轴上的移动距离
     const deltaX = (clientX - initialMouseX.value) / parentScale.value / scale.value
     // 计算鼠标在y轴上的移动距离
     const deltaY = (clientY - initialMouseY.value) / parentScale.value / scale.value
-
     let newTop = initialTop.value + deltaY
     let newLeft = initialLeft.value + deltaX
 
@@ -321,19 +453,18 @@ function yDragFn(event: MouseEvent) {
       gridPosLeft.value = snappedX
       gridPosTop.value = snappedY
     }
-
     top.value = newTop
     left.value = newLeft
     // 磁吸检测
     if (magnet.value) {
       magnetDetection(newLeft, newTop)
     }
-    emits("onDrag", dragData.value)
+    emits('onDrag', dragData.value)
   }
 }
 
 // 拖拽结束
-function yDragStopFn(event: MouseEvent) {
+function yDragStopFn(event: MouseEvent | TouchEvent) {
   isDragging.value = false
 
   // 隐藏网格位置
@@ -360,7 +491,7 @@ function yDragStopFn(event: MouseEvent) {
     requestAnimationFrame(() => {
       const collisionRes = collisionDetection()
       if (collisionRes) {
-        if (collisionRestore.value == "before") {
+        if (collisionRestore.value == 'before') {
           left.value = prevX.value
           top.value = prevY.value
         } else {
@@ -371,9 +502,12 @@ function yDragStopFn(event: MouseEvent) {
     })
   }
 
-  emits("onDragStop", dragData.value)
-  window.removeEventListener("mousemove", yDragFn, { capture: true })
-  window.removeEventListener("mouseup", yDragStopFn, { capture: true })
+  emits('onDragStop', dragData.value)
+  window.removeEventListener('mousemove', yDragFn, { capture: true })
+  window.removeEventListener('mouseup', yDragStopFn, { capture: true })
+
+  window.removeEventListener('touchmove', yDragFn, { capture: true })
+  window.removeEventListener('touchend', yDragStopFn, { capture: true })
 }
 
 // 重置元素位置
@@ -426,8 +560,8 @@ function collisionDetection() {
     const rect1 = draggable.value.getBoundingClientRect()
     const rect2 = item.getBoundingClientRect()
 
-    const scale1 = draggable.value.getAttribute("data-scale")
-    const scale2: any = item.getAttribute("data-scale")
+    const scale1 = draggable.value.getAttribute('data-scale')
+    const scale2: any = item.getAttribute('data-scale')
     const overlap = !(
       rect1.right * scale1 < rect2.left * scale2 ||
       rect1.left * scale1 > rect2.right * scale2 ||
@@ -468,7 +602,7 @@ function magnetDetection(x: number, y: number) {
       continue
     }
     const rect1 = draggable.value.getBoundingClientRect()
-    const scale1 = draggable.value.getAttribute("data-scale")
+    const scale1 = draggable.value.getAttribute('data-scale')
     const rect1Width = rect1.width
 
     const rect1Height = rect1.height
@@ -480,7 +614,7 @@ function magnetDetection(x: number, y: number) {
     const rect1CenterY = rect1Height / 2
 
     const rect2 = item.getBoundingClientRect()
-    const scale2: any = item.getAttribute("data-scale")
+    const scale2: any = item.getAttribute('data-scale')
     const rect2Width = rect2.width
     const rect2Height = rect2.height
     const rect2Top = rect2.top - parentTop
@@ -533,10 +667,10 @@ function magnetDetection(x: number, y: number) {
       top.value = rect2Top + rect2CenterY - rect1CenterY
     }
   }
-  emits("auxLine", objX)
+  emits('auxLine', objX)
   return
 }
 </script>
 <style scoped>
-@import "./style.css";
+@import './style.css';
 </style>
