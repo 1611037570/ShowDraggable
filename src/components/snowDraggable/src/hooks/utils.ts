@@ -29,8 +29,8 @@ export function getSnapGrid(
   return [snappedX, snappedY]
 }
 
-// 检查是否是有效的手柄实现
-export function isValidHandle(event: any, handle: string | string[]) {
+// 获取手柄
+export function getHandle(event: any, handle: string | string[]) {
   try {
     if (typeof handle === 'string') {
       return event.target?.closest(handle) !== null
@@ -42,7 +42,7 @@ export function isValidHandle(event: any, handle: string | string[]) {
   }
   return false
 }
-// 获取旋转后大小
+// 获取旋转实际大小
 export function getRotatedDimensions(width: number, height: number, angle: number) {
   // 将角度转换为弧度
   const radians = angle * (Math.PI / 180)
@@ -53,10 +53,7 @@ export function getRotatedDimensions(width: number, height: number, angle: numbe
 }
 
 // 获取鼠标或触摸事件的客户端坐标
-export function getClientCoordinates(event: MouseEvent | TouchEvent): {
-  clientX: number
-  clientY: number
-} {
+export function getClientCoordinates(event: MouseEvent | TouchEvent) {
   if (event instanceof TouchEvent) {
     return {
       clientX: event.touches[0].clientX,

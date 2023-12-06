@@ -1,7 +1,6 @@
 <template>
   <div
     ref="draggable"
-    style="border: 0px solid red"
     :style="[draggableMode, draggablePos]"
     @mousedown.stop="yDragStartFn"
     @touchstart.stop="yDragStartFn"
@@ -25,65 +24,8 @@
 import { ref, onMounted, toRefs, computed, watch, onBeforeUnmount, nextTick } from 'vue'
 import { useWindowSize } from './hooks/useWindowSize'
 import { useElementSize, vElementSize } from './hooks/useElementSize'
-import { getSnapGrid, isValidHandle, getRotatedDimensions, getClientCoordinates } from './hooks/utils'
-export interface DragProps {
-  // 禁用组件拖拽
-  disabled?: boolean
-  // 基于父级视图
-  parent?: boolean
-  // 边缘检测
-  boundary?: boolean
-  // 碰撞检测
-  collision?: boolean
-  collisionName?: string | number
-  // 碰撞还原
-  collisionRestore?: string
-  // 磁吸检测
-  magnet?: boolean
-  // 磁吸名称
-  magnetName?: string | number
-  // 磁吸范围
-  magnetRange?: number
-  // 磁吸边距
-  magnetMargin?: number
-  // 双向绑定xyzr
-  x?: number
-  y?: number
-  index?: number
-  rotate?: number
-  // 独立缩放
-  scale?: number
-  // 父级缩放
-  parentScale?: number
-  // 网格大小
-  grid?: any
-  // 拖拽后吸附网格
-  afterDraggingAdsorbGrid?: boolean
-  // 拖动时吸附网格
-  whileDraggingAdsorbGrid?: boolean
-  // 拖动网格位置
-  gridLocation?: boolean
-  // 网格边距
-  gridMargin?: number
-  // 拖拽元素的选择器
-  handle?: string | string[] | null
-  // 禁用拖拽元素的选择器
-  disabledHandle?: string | string[] | null
-  // 禁用默认事件
-  disabledDefaultEvent?: boolean
-  // 拖拽样式
-  draggableClass?: string
-  draggableStyle?: object | null
-  // 网格样式
-  gridClass?: string
-  gridStyle?: object | null
-  // 重置位置
-  resetPosition?: boolean
-  // 用户数据
-  data?: any
-  // 首次定位
-  firstPosition?: string[] | number[] | null
-}
+import { getSnapGrid, getHandle, getRotatedDimensions, getClientCoordinates } from './hooks/utils'
+import { DragProps } from './types'
 
 const props = withDefaults(defineProps<DragProps>(), {
   disabled: false,
@@ -253,14 +195,16 @@ watch(parentSize, (val: any) => {
   setPosition()
 })
 const isFirstPosition = ref(true)
+
 function setPosition() {
-  if (!firstPosition.value || !firstPosition.value.length || !isFirstPosition.value) {
+  if (!isFirstPosition.value) return
+  if (!firstPosition.value || !firstPosition.value.length) {
     top.value = y.value
     left.value = x.value
     return
   }
 
-  if (typeof firstPosition.value[0] == 'string' && typeof firstPosition.value[1] == 'string') {
+  if (typeof firstPosition.value[0] === 'string') {
     switch (firstPosition.value[0]) {
       case 'left':
         left.value = 0
@@ -271,8 +215,15 @@ function setPosition() {
       case 'center':
         left.value = parentSize.value.width / 2 - draggableSize.value.width / 2
         break
+      default:
+        console.warn('firstPosition参数错误！第一个值必须为字符串时只接受left、right、center')
     }
-
+  } else if (typeof firstPosition.value[0] == 'number') {
+    left.value = firstPosition.value[0]
+  } else {
+    console.warn('firstPosition参数错误！第一个值必须为字符串或数字')
+  }
+  if (typeof firstPosition.value[1] === 'string') {
     switch (firstPosition.value[1]) {
       case 'top':
         top.value = 0
@@ -283,9 +234,30 @@ function setPosition() {
       case 'center':
         top.value = parentSize.value.height / 2 - draggableSize.value.height / 2
         break
+      case 'left':
+      default:
+        console.warn('firstPosition参数错误！第二个值必须为字符串时只接受top、bottom、center')
     }
-    isFirstPosition.value = false
+  } else if (typeof firstPosition.value[1] === 'number') {
+    top.value = firstPosition.value[1]
+  } else {
+    console.warn('firstPosition参数错误！第二个值必须为字符串或数字')
   }
+
+  if (firstPosition.value.length == 3 && typeof firstPosition.value[2] === 'number') {
+    left.value += firstPosition.value[2]
+    top.value += firstPosition.value[2]
+  } else if (
+    firstPosition.value.length == 4 &&
+    typeof firstPosition.value[2] === 'number' &&
+    typeof firstPosition.value[3] === 'number'
+  ) {
+    left.value += firstPosition.value[2]
+    top.value += firstPosition.value[3]
+  } else {
+    console.warn('firstPosition参数错误！第三、第四个值必须为数字')
+  }
+  isFirstPosition.value = false
 }
 
 onMounted(() => {
@@ -310,16 +282,10 @@ onMounted(() => {
   watch(
     [() => collision, () => magnet],
     ([newCollision, newMagnet], []) => {
-      if (newCollision) {
-        draggable.value.setAttribute(`data-collision-${collisionName.value}`, true)
-      } else {
-        draggable.value.removeAttribute(`data-collision-${collisionName.value}`)
-      }
-      if (newMagnet) {
-        draggable.value.setAttribute(`data-magnet-${magnetName.value}`, true)
-      } else {
-        draggable.value.removeAttribute(`data-magnet-${magnetName.value}`)
-      }
+      if (newCollision) draggable.value.setAttribute(`data-collision-${collisionName.value}`, true)
+      else draggable.value.removeAttribute(`data-collision-${collisionName.value}`)
+      if (newMagnet) draggable.value.setAttribute(`data-magnet-${magnetName.value}`, true)
+      else draggable.value.removeAttribute(`data-magnet-${magnetName.value}`)
     },
     {
       immediate: true
@@ -345,10 +311,10 @@ function yDragStartFn(event: MouseEvent) {
   }
   // 手柄区域
   if (handle.value) {
-    const handleElement = isValidHandle(event, handle.value)
+    const handleElement = getHandle(event, handle.value)
     if (!handleElement) return
   } else if (disabledHandle.value) {
-    const isHandleDisabled = isValidHandle(event, disabledHandle.value)
+    const isHandleDisabled = getHandle(event, disabledHandle.value)
     if (isHandleDisabled) return
   }
 
@@ -545,9 +511,7 @@ function collisionDetection() {
       rect1.bottom * scale1 < rect2.top * scale2 ||
       rect1.top * scale1 > rect2.bottom * scale2
     )
-    if (overlap) {
-      return true
-    }
+    if (overlap) return true
   }
   return false
 }
@@ -651,4 +615,3 @@ function magnetDetection(x: number, y: number) {
 <style scoped>
 @import './assets/style.css';
 </style>
-./hooks/utils
