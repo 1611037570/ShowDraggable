@@ -191,10 +191,10 @@ function getElementSize(size: any) {
   }
 }
 
-watch(parentSize, (val: any) => {
-  setTimeout(() => {
+watch([() => parentSize.value, () => draggableSize.value], () => {
+  if (parentSize.value?.width !== undefined && draggableSize.value?.width !== undefined) {
     setPosition()
-  }, 100)
+  }
 })
 const isFirstPosition = ref(true)
 
@@ -269,8 +269,10 @@ onMounted(() => {
     parent,
     () => {
       if (parent.value) {
-        parentSize.value = useElementSize(draggable.value.parentNode)
-        // ResetElementPosition()
+        useElementSize(draggable.value.parentNode, (size: any) => {
+          parentSize.value = size
+          ResetElementPosition()
+        })
       } else {
         useWindowSize((size: any) => {
           parentSize.value = size

@@ -1,7 +1,7 @@
 <template>
-  <SnowDraggable />
+  <!-- <SnowDraggable /> -->
   <div style="width: 100%; height: 400px; border: 1px solid red">
-    <SnowDraggable parent :firstPosition="null" />
+    <!-- <SnowDraggable parent :firstPosition="null" /> -->
     <SnowDraggable parent />
   </div>
 </template>
