@@ -2,8 +2,8 @@
   <div
     ref="draggable"
     :style="[draggableMode, draggablePos]"
-    @mousedown.stop="yDragStartFn"
-    @touchstart.stop="yDragStartFn"
+    @mousedown.stop="snowDragStart"
+    @touchstart.stop="snowDragStart"
   >
     <div
       v-element-size="getElementSize"
@@ -192,18 +192,21 @@ function getElementSize(size: any) {
 }
 
 watch(parentSize, (val: any) => {
-  setPosition()
+  setTimeout(() => {
+    setPosition()
+  }, 100)
 })
 const isFirstPosition = ref(true)
 
 function setPosition() {
   if (!isFirstPosition.value) return
+  isFirstPosition.value = false
   if (!firstPosition.value || !firstPosition.value.length) {
     top.value = y.value
     left.value = x.value
+
     return
   }
-
   if (typeof firstPosition.value[0] === 'string') {
     switch (firstPosition.value[0]) {
       case 'left':
@@ -257,7 +260,7 @@ function setPosition() {
   } else {
     console.warn('firstPosition参数错误！第三、第四个值必须为数字')
   }
-  isFirstPosition.value = false
+  snowDragEnd()
 }
 
 onMounted(() => {
@@ -267,6 +270,7 @@ onMounted(() => {
     () => {
       if (parent.value) {
         parentSize.value = useElementSize(draggable.value.parentNode)
+        // ResetElementPosition()
       } else {
         useWindowSize((size: any) => {
           parentSize.value = size
@@ -304,7 +308,7 @@ onMounted(() => {
 })
 
 // 拖拽开始
-function yDragStartFn(event: MouseEvent) {
+function snowDragStart(event: MouseEvent) {
   if (disabled.value) return
   if (event instanceof MouseEvent && event.button !== 0) {
     return
@@ -330,84 +334,82 @@ function yDragStartFn(event: MouseEvent) {
   prevY.value = top.value
   prevX.value = left.value
   emits('onDragStart', dragData.value)
-  window.addEventListener('mousemove', yDragFn, { capture: true })
-  window.addEventListener('mouseup', yDragStopFn, { capture: true })
+  window.addEventListener('mousemove', snowDrag, { capture: true })
+  window.addEventListener('mouseup', snowDragEnd, { capture: true })
 
-  window.addEventListener('touchmove', yDragFn, { capture: true, passive: false })
-  window.addEventListener('touchend', yDragStopFn, { capture: true, passive: false })
+  window.addEventListener('touchmove', snowDrag, { capture: true, passive: false })
+  window.addEventListener('touchend', snowDragEnd, { capture: true, passive: false })
 }
 // 拖拽过程
-function yDragFn(event: MouseEvent | TouchEvent) {
-  if (isDragging.value) {
-    // 阻止默认事件
-    if (disabledDefaultEvent.value) {
-      event.preventDefault()
-    }
-    if (gridLocation.value) {
-      showGridPos.value = true
-    }
-    const { clientX, clientY } = getClientCoordinates(event)
-
-    // 计算鼠标在x轴上的移动距离
-    const deltaX = (clientX - initialMouseX.value) / parentScale.value / scale.value
-    // 计算鼠标在y轴上的移动距离
-    const deltaY = (clientY - initialMouseY.value) / parentScale.value / scale.value
-    let newTop = initialTop.value + deltaY
-    let newLeft = initialLeft.value + deltaX
-
-    const [snappedX, snappedY] = getSnapGrid(
-      grid.value,
-      newLeft,
-      newTop,
-      parentSize.value.width / scale.value,
-      parentSize.value.height / scale.value,
-      gridMargin.value
-    )
-    // 拖拽时吸附网格
-    if (whileDraggingAdsorbGrid.value) {
-      newLeft = snappedX
-      newTop = snappedY
-    }
-
-    // 边缘检测
-    if (boundary.value) {
-      const [boundaryX, boundaryY] = boundaryDetection(newLeft, newTop)
-      newLeft = boundaryX
-      newTop = boundaryY
-    }
-
-    // 冲突检测
-    if (collision.value) {
-      requestAnimationFrame(() => {
-        const collisionRes = collisionDetection()
-        if (!collisionRes) {
-          if (afterDraggingAdsorbGrid.value || whileDraggingAdsorbGrid.value) {
-            prevX.value = snappedX
-            prevY.value = snappedY
-            gridPosLeft.value = snappedX
-            gridPosTop.value = snappedY
-          } else {
-            prevY.value = top.value
-            prevX.value = left.value
-          }
-        }
-      })
-    } else {
-      gridPosLeft.value = snappedX
-      gridPosTop.value = snappedY
-    }
-    top.value = newTop
-    left.value = newLeft
-    // 磁吸检测
-    if (magnet.value) {
-      magnetDetection(newLeft, newTop)
-    }
-    emits('onDrag', dragData.value)
+function snowDrag(event: MouseEvent | TouchEvent) {
+  if (!isDragging.value) return
+  // 阻止默认事件
+  if (disabledDefaultEvent.value) {
+    event.preventDefault()
   }
+  if (gridLocation.value) {
+    showGridPos.value = true
+  }
+  const { clientX, clientY } = getClientCoordinates(event)
+
+  // 计算鼠标在x轴上的移动距离
+  const deltaX = (clientX - initialMouseX.value) / parentScale.value / scale.value
+  // 计算鼠标在y轴上的移动距离
+  const deltaY = (clientY - initialMouseY.value) / parentScale.value / scale.value
+  let newTop = initialTop.value + deltaY
+  let newLeft = initialLeft.value + deltaX
+  const [snappedX, snappedY] = getSnapGrid(
+    grid.value,
+    newLeft,
+    newTop,
+    parentSize.value.width / scale.value,
+    parentSize.value.height / scale.value,
+    gridMargin.value
+  )
+  // 拖拽时吸附网格
+  if (whileDraggingAdsorbGrid.value) {
+    newLeft = snappedX
+    newTop = snappedY
+  }
+
+  // 边缘检测
+  if (boundary.value) {
+    const [boundaryX, boundaryY] = boundaryDetection(newLeft, newTop)
+    newLeft = boundaryX
+    newTop = boundaryY
+  }
+
+  // 冲突检测
+  if (collision.value) {
+    requestAnimationFrame(() => {
+      const collisionRes = collisionDetection()
+      if (!collisionRes) {
+        if (afterDraggingAdsorbGrid.value || whileDraggingAdsorbGrid.value) {
+          prevX.value = snappedX
+          prevY.value = snappedY
+          gridPosLeft.value = snappedX
+          gridPosTop.value = snappedY
+        } else {
+          prevY.value = top.value
+          prevX.value = left.value
+        }
+      }
+    })
+  } else {
+    gridPosLeft.value = snappedX
+    gridPosTop.value = snappedY
+  }
+  top.value = newTop
+  left.value = newLeft
+  // 磁吸检测
+  if (magnet.value) {
+    magnetDetection(newLeft, newTop)
+  }
+  emits('onDrag', dragData.value)
 }
 
 // 拖拽结束
-function yDragStopFn(event: MouseEvent | TouchEvent) {
+function snowDragEnd(event?: MouseEvent | TouchEvent) {
   isDragging.value = false
 
   // 隐藏网格位置
@@ -446,11 +448,11 @@ function yDragStopFn(event: MouseEvent | TouchEvent) {
   }
 
   emits('onDragStop', dragData.value)
-  window.removeEventListener('mousemove', yDragFn, { capture: true })
-  window.removeEventListener('mouseup', yDragStopFn, { capture: true })
+  window.removeEventListener('mousemove', snowDrag, { capture: true })
+  window.removeEventListener('mouseup', snowDragEnd, { capture: true })
 
-  window.removeEventListener('touchmove', yDragFn, { capture: true })
-  window.removeEventListener('touchend', yDragStopFn, { capture: true })
+  window.removeEventListener('touchmove', snowDrag, { capture: true })
+  window.removeEventListener('touchend', snowDragEnd, { capture: true })
 }
 
 // 重置元素位置
@@ -611,6 +613,8 @@ function magnetDetection(x: number, y: number) {
   emits('auxLine', objX)
   return
 }
+
+defineExpose({})
 </script>
 <style scoped>
 @import './assets/style.css';
