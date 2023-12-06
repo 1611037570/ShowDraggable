@@ -1,5 +1,5 @@
-// 吸附网格实现
-export function snapGrid(
+// 获取网格
+export function getSnapGrid(
   grid: number[],
   x: number,
   y: number,
@@ -42,12 +42,30 @@ export function isValidHandle(event: any, handle: string | string[]) {
   }
   return false
 }
-// 旋转后大小实现
-export function rotatedDimensions(width: number, height: number, angle: number) {
+// 获取旋转后大小
+export function getRotatedDimensions(width: number, height: number, angle: number) {
   // 将角度转换为弧度
   const radians = angle * (Math.PI / 180)
   // 使用三角函数公式计算旋转后的宽度和高度
   const newWidth = Math.abs(width * Math.cos(radians)) + Math.abs(height * Math.sin(radians))
   const newHeight = Math.abs(width * Math.sin(radians)) + Math.abs(height * Math.cos(radians))
   return [newWidth, newHeight]
+}
+
+// 获取鼠标或触摸事件的客户端坐标
+export function getClientCoordinates(event: MouseEvent | TouchEvent): {
+  clientX: number
+  clientY: number
+} {
+  if (event instanceof TouchEvent) {
+    return {
+      clientX: event.touches[0].clientX,
+      clientY: event.touches[0].clientY
+    }
+  } else {
+    return {
+      clientX: event.clientX,
+      clientY: event.clientY
+    }
+  }
 }

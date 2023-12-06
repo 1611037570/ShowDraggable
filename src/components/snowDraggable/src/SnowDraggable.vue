@@ -25,7 +25,7 @@
 import { ref, onMounted, toRefs, computed, watch, onBeforeUnmount, nextTick } from 'vue'
 import { useWindowSize } from './hooks/useWindowSize'
 import { useElementSize, vElementSize } from './hooks/useElementSize'
-import { snapGrid, isValidHandle, rotatedDimensions } from './utils'
+import { getSnapGrid, isValidHandle, getRotatedDimensions, getClientCoordinates } from './hooks/utils'
 export interface DragProps {
   // 禁用组件拖拽
   disabled?: boolean
@@ -242,7 +242,7 @@ watch(rotate, () => {
 })
 function getElementSize(size: any) {
   elementSize.value = size
-  const [newWidth, newHeight] = rotatedDimensions(size.width, size.height, rotate.value)
+  const [newWidth, newHeight] = getRotatedDimensions(size.width, size.height, rotate.value)
   draggableSize.value = {
     width: newWidth,
     height: newHeight
@@ -336,22 +336,7 @@ onMounted(() => {
     }
   )
 })
-function getClientCoordinates(event: MouseEvent | TouchEvent): {
-  clientX: number
-  clientY: number
-} {
-  if (event instanceof TouchEvent) {
-    return {
-      clientX: event.touches[0].clientX,
-      clientY: event.touches[0].clientY
-    }
-  } else {
-    return {
-      clientX: event.clientX,
-      clientY: event.clientY
-    }
-  }
-}
+
 // 拖拽开始
 function yDragStartFn(event: MouseEvent) {
   if (disabled.value) return
@@ -404,7 +389,7 @@ function yDragFn(event: MouseEvent | TouchEvent) {
     let newTop = initialTop.value + deltaY
     let newLeft = initialLeft.value + deltaX
 
-    const [snappedX, snappedY] = snapGrid(
+    const [snappedX, snappedY] = getSnapGrid(
       grid.value,
       newLeft,
       newTop,
@@ -465,7 +450,7 @@ function yDragStopFn(event: MouseEvent | TouchEvent) {
   }
   // 拖拽结束吸附网格
   if (afterDraggingAdsorbGrid.value) {
-    const [snappedX, snappedY] = snapGrid(
+    const [snappedX, snappedY] = getSnapGrid(
       grid.value,
       left.value,
       top.value,
@@ -666,3 +651,4 @@ function magnetDetection(x: number, y: number) {
 <style scoped>
 @import './assets/style.css';
 </style>
+./hooks/utils
